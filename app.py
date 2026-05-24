@@ -48,7 +48,7 @@ if claude_key and gecko_key and tavily_key:
                     # 3. Analisis dengan model yang ada di setting.json
                     prompt = f"Data Harga: {data}. Berita: {news}. Analisis mendalam untuk portofolio crypto."
                     msg = client.messages.create(
-                        model="claude-opus-4-7", # Kita coba pakai 'opus' sesuai setting.json kamu
+                        model="claude-sonnet-4-6", # Kita coba pakai 'opus' sesuai setting.json kamu
                         max_tokens=1000, 
                         messages=[{"role": "user", "content": prompt}]
                     )
