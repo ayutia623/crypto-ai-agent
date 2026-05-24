@@ -1,46 +1,46 @@
 import streamlit as st
-from pycoingecko import CoinGeckoAPI
+import requests
+import pandas as pd
 import anthropic
 from tavily import TavilyClient
 
-st.set_page_config(page_title="Crypto AI Agent Pro", layout="wide")
-st.title("🚀 Crypto AI Agent - Intelligence Mode")
+st.set_page_config(page_title="Pro Crypto Terminal", layout="wide")
 
+# Styling agar terlihat seperti terminal profesional
+st.markdown("""<style>.main {background-color: #0e1117;}</style>""", unsafe_allow_html=True)
+
+st.title("📊 Pro Crypto Terminal")
+
+# Sidebar
 with st.sidebar:
-    st.header("🔑 Kunci Akses")
-    claude_key = st.text_input("Claude API Key", type="password")
-    gecko_key = st.text_input("CoinGecko API Key", type="password")
-    tavily_key = st.text_input("Tavily API Key", type="password")
+    st.header("🔑 Kredensial")
+    claude_key = st.text_input("Claude Key", type="password")
+    gecko_key = st.text_input("Gecko Key", type="password")
+    tavily_key = st.text_input("Tavily Key", type="password")
 
 if claude_key and gecko_key and tavily_key:
-    cg = CoinGeckoAPI(api_key=gecko_key)
-    client = anthropic.Anthropic(
-        api_key=claude_key,
-        base_url="https://api.tokies.lol/anthropic",
-        default_headers={"x-api-key": claude_key}
-    )
-    tavily = TavilyClient(api_key=tavily_key)
+    # 1. Layout Kolom untuk Tampilan Kompleks
+    col1, col2 = st.columns([1, 2])
     
-    coins = ['bitcoin', 'ethereum', 'solana']
-    
-    if st.button("Analisis Komprehensif (Data + Berita)"):
-        with st.spinner("Sedang meriset pasar..."):
-            # 1. Tarik Data Harga
-            data = cg.get_price(ids=','.join(coins), vs_currencies='usd')
-            market_summary = "\n".join([f"{c.capitalize()}: ${data[c]['usd']:,}" for c in coins])
-            
-            # 2. Cari Berita Terkini via Tavily
-            news = tavily.search(query="crypto market trends news analysis May 2026", search_depth="advanced")
-            news_summary = "\n".join([f"- {r['title']}: {r['content']}" for r in news['results'][:3]])
-            
-            # 3. Analisis oleh Claude
-            prompt = f"Data Harga:\n{market_summary}\n\nBerita Terkini:\n{news_summary}\n\nBerikan analisis mendalam dan strategi trading untuk hari ini."
-            
-            message = client.messages.create(
-                model="claude-opus-4-7",
-                max_tokens=800,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            st.write(message.content[0].text)
+    with col1:
+        st.subheader("📈 Data Pasar")
+        url = f"https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=bitcoin,ethereum,solana&x_cg_demo_api_key={gecko_key}"
+        data = requests.get(url).json()
+        df = pd.DataFrame(data).T # Mengubah data menjadi tabel rapi
+        st.table(df)
+
+    with col2:
+        st.subheader("🧠 Analisis AI")
+        if st.button("Jalankan Analisis Mendalam"):
+            with st.spinner("Mereset pasar & menganalisis data..."):
+                # Pencarian Tavily
+                tavily = TavilyClient(api_key=tavily_key)
+                news = tavily.search(query="crypto market analysis May 2026")
+                
+                # Analisis Claude
+                client = anthropic.Anthropic(api_key=claude_key, base_url="https://api.tokies.lol/anthropic", default_headers={"x-api-key": claude_key})
+                prompt = f"Data Harga: {data}. Berita: {news}. Analisis teknikal & fundamental mendalam."
+                msg = client.messages.create(model="claude-opus-4-7", max_tokens=1000, messages=[{"role": "user", "content": prompt}])
+                st.write(msg.content[0].text)
 else:
-    st.info("Masukkan ketiga API Key di sidebar untuk mengaktifkan agen cerdas.")
+    st.info("Terminal belum aktif. Silakan masukkan kunci API.")
