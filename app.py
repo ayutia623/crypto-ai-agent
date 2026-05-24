@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from tavily import TavilyClient
 
-st.set_page_config(page_title="Pro Crypto Terminal", layout="wide")
-st.title("🚀 Pro Crypto Terminal v2.0")
+st.set_page_config(page_title="Pro Crypto Command Center", layout="wide")
+st.title("🚀 Crypto Command Center v3.0")
 
 # Ambil dari Secrets
 auth_token = st.secrets.get("ANTHROPIC_AUTH_TOKEN")
@@ -14,43 +14,49 @@ tavily_key = st.secrets.get("TAVILY_API_KEY")
 base_url = st.secrets.get("ANTHROPIC_BASE_URL")
 model_name = st.secrets.get("ANTHROPIC_MODEL")
 
-# Fungsi Data Historis
 @st.cache_data(ttl=60)
 def get_data(coin):
     url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key={gecko_key}"
-    data = requests.get(url).json()
-    df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
+    response = requests.get(url).json()
+    df = pd.DataFrame(response['prices'], columns=['timestamp', 'price'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
 
-# Layout Dashbord
-col1, col2 = st.columns([2, 1])
+# Layout Utama
+coin = st.sidebar.selectbox("Pilih Aset:", ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple'])
+df = get_data(coin)
 
-with col1:
-    coin = st.selectbox("Pilih Aset untuk Analisis:", ['bitcoin', 'ethereum', 'solana'])
-    df = get_data(coin)
-    fig = go.Figure(data=[go.Scatter(x=df['timestamp'], y=df['price'], mode='lines', line=dict(color='#00ffcc'))])
-    fig.update_layout(template="plotly_dark", title=f"Pergerakan {coin.upper()} 24 Jam Terakhir")
-    st.plotly_chart(fig, use_container_width=True)
+# Statistik Cepat (Cards)
+col1, col2, col3 = st.columns(3)
+current_price = df['price'].iloc[-1]
+change = ((current_price - df['price'].iloc[0]) / df['price'].iloc[0]) * 100
+col1.metric("Harga Saat Ini", f"${current_price:,.2f}", f"{change:.2f}%")
+col2.metric("Harga Tertinggi (24h)", f"${df['price'].max():,.2f}")
+col3.metric("Harga Terendah (24h)", f"${df['price'].min():,.2f}")
 
-with col2:
-    st.subheader("🤖 Agensi AI")
-    if st.button("Jalankan Analisis Lengkap"):
-        with st.spinner("Menggabungkan data teknikal, berita, dan sentimen..."):
-            # 1. Riset
-            tavily = TavilyClient(api_key=tavily_key)
-            news = tavily.search(query=f"latest news and market sentiment for {coin} May 2026")
-            
-            # 2. Analisis Claude
-            headers = {"x-api-key": auth_token, "Content-Type": "application/json"}
-            prompt = f"""
-            Aset: {coin}. Harga saat ini: {df['price'].iloc[-1]}. 
-            Data 24 jam terakhir: {df.tail(10).to_string()}. 
-            Berita terbaru: {news}. 
-            Tugas: Berikan analisis komprehensif, hitung volatilitas, dan berikan rekomendasi (Beli/Hold/Jual) dengan alasan yang logis.
-            """
-            payload = {"model": model_name, "messages": [{"role": "user", "content": prompt}]}
-            response = requests.post(f"{base_url}/v1/messages", json=payload, headers=headers).json()
-            st.write(response['content'][0]['text'])
+# Grafik Utama
+fig = go.Figure(data=[go.Scatter(x=df['timestamp'], y=df['price'], line=dict(color='#00ffcc'))])
+fig.update_layout(template="plotly_dark", height=300)
+st.plotly_chart(fig, use_container_width=True)
 
-st.info("Fitur Baru: Sekarang AI memantau data historis 24 jam terakhir untuk memberikan rekomendasi yang lebih presisi.")
+# Monitoring Kerja AI (Real-time Simulation)
+if st.button("Jalankan Analisis Komprehensif"):
+    with st.status("Memulai simulasi analisis...", expanded=True) as status:
+        st.write("Mengecek data pasar global...")
+        tavily = TavilyClient(api_key=tavily_key)
+        
+        st.write("Mencari sentimen berita terkini...")
+        news = tavily.search(query=f"market sentiment {coin} May 2026")
+        
+        st.write("Mengirim data ke Claude (Opus)...")
+        headers = {"x-api-key": auth_token, "Content-Type": "application/json"}
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": f"Aset: {coin}. Harga: {current_price}. Berita: {news}. Analisis mendalam?"}]
+        }
+        response = requests.post(f"{base_url}/v1/messages", json=payload, headers=headers).json()
+        
+        status.update(label="Analisis Selesai!", state="complete")
+        
+    st.markdown("### 🧠 Hasil Analisis AI")
+    st.write(response['content'][0]['text'])
