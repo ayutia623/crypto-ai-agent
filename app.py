@@ -3,19 +3,17 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from tavily import TavilyClient
-import ccxt
 
-st.set_page_config(page_title="Pro Crypto Command Center", layout="wide")
-st.title("🚀 Paper Trading & Command Center v5.0")
+st.set_page_config(page_title="Pro Crypto Master Command Center", layout="wide")
+st.title("🚀 Crypto Master Command Center")
 
-# Ambil Secrets
+# Konfigurasi API
 auth_token = st.secrets.get("ANTHROPIC_AUTH_TOKEN")
 gecko_key = st.secrets.get("GECKO_API_KEY")
 tavily_key = st.secrets.get("TAVILY_API_KEY")
 base_url = st.secrets.get("ANTHROPIC_BASE_URL")
 model_name = st.secrets.get("ANTHROPIC_MODEL")
 
-# Fungsi Data
 @st.cache_data(ttl=60)
 def get_data(coin):
     url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key={gecko_key}"
@@ -24,34 +22,38 @@ def get_data(coin):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
 
-coin = st.sidebar.selectbox("Pilih Aset:", ['bitcoin', 'ethereum', 'solana'])
-df = get_data(coin)
-current_price = df['price'].iloc[-1]
+# TAB 1: Dashboard & Analisis
+tab1, tab2 = st.tabs(["📊 Dashboard & Prediksi", "💬 AI Crypto Chat"])
 
-# Panel Simulasi
-st.sidebar.subheader("💰 Simulasi Paper Trading")
-if "balance" not in st.session_state: st.session_state.balance = 10000.0 # Modal awal $10.000
-st.sidebar.write(f"Modal Virtual: ${st.session_state.balance:,.2f}")
+with tab1:
+    coin = st.selectbox("Pilih Aset:", ['bitcoin', 'ethereum', 'solana'])
+    df = get_data(coin)
+    fig = go.Figure(data=[go.Scatter(x=df['timestamp'], y=df['price'], line=dict(color='#00ffcc'))])
+    fig.update_layout(template="plotly_dark", height=300)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    if st.button("Jalankan Analisis Komprehensif"):
+        with st.status("AI sedang bekerja...", expanded=True):
+            tavily = TavilyClient(api_key=tavily_key)
+            news = tavily.search(query=f"market analysis {coin} May 2026")
+            headers = {"x-api-key": auth_token, "Content-Type": "application/json"}
+            payload = {"model": model_name, "messages": [{"role": "user", "content": f"Aset: {coin}. Berita: {news}. Analisis & prediksi 3 jam?"}]}
+            res = requests.post(f"{base_url}/v1/messages", json=payload, headers=headers).json()
+            st.write(res['content'][0]['text'])
 
-if st.sidebar.button("Simulasi Beli (Buy)"):
-    st.session_state.entry_price = current_price
-    st.sidebar.success(f"Beli di ${current_price:,.2f}")
-
-# Analisis AI
-if st.button("Jalankan Analisis & Strategi Trading"):
-    with st.status("AI sedang menghitung strategi...", expanded=True):
-        tavily = TavilyClient(api_key=tavily_key)
-        news = tavily.search(query=f"market analysis {coin} May 2026")
+# TAB 2: Chat Assistant
+with tab2:
+    if "messages" not in st.session_state: st.session_state.messages = []
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
         
-        headers = {"x-api-key": auth_token, "Content-Type": "application/json"}
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": f"Aset: {coin}. Harga: {current_price}. Berita: {news}. Berikan rekomendasi Buy/Hold/Sell dan alasan teknikal."}]
-        }
-        res = requests.post(f"{base_url}/v1/messages", json=payload, headers=headers).json()
-        st.write(res['content'][0]['text'])
-
-# Visualisasi
-fig = go.Figure(data=[go.Scatter(x=df['timestamp'], y=df['price'], line=dict(color='#00ffcc'))])
-fig.update_layout(template="plotly_dark", height=300)
-st.plotly_chart(fig, use_container_width=True)
+    if prompt := st.chat_input("Tanya AI tentang strategi trading..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.markdown(prompt)
+        
+        with st.chat_message("assistant"):
+            payload = {"model": model_name, "messages": st.session_state.messages}
+            res = requests.post(f"{base_url}/v1/messages", json={"x-api-key": auth_token, **payload}, headers={"x-api-key": auth_token, "Content-Type": "application/json"}).json()
+            answer = res['content'][0]['text']
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
