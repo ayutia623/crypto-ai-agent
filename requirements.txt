@@ -1,4 +1,6 @@
 streamlit
-pycoingecko
+requests
+pandas
 anthropic
 tavily-python
+plotly
