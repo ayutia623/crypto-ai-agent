@@ -6,16 +6,20 @@ st.set_page_config(page_title="Crypto AI Agent", layout="wide")
 
 st.title("🚀 Crypto AI Agent - Live Analysis")
 
-# Sidebar untuk API Key
 with st.sidebar:
-    claude_key = st.text_input("Claude API Key", type="password")
-    gecko_key = st.text_input("CoinGecko API Key", type="password")
-
-if claude_key and gecko_key:
-    cg = CoinGeckoAPI(api_key=gecko_key)
-    client = anthropic.Anthropic(api_key=claude_key)
-
-    # Menarik harga Bitcoin
+    # Kita tetap minta user input, tapi nanti bisa kita pindahkan ke Secrets
+    api_key = st.text_input("Tokies/Claude API Key", type="password")
+    
+if api_key:
+    # Konfigurasi Client Anthropic dengan URL kustom
+    client = anthropic.Anthropic(
+        api_key=api_key,
+        base_url="https://api.tokies.lol/anthropic" # URL kustom kamu
+    )
+    
+    # Inisialisasi CoinGecko (tambahkan pengecekan jika kamu butuh kunci geckonya)
+    cg = CoinGeckoAPI() # Pakai mode publik jika tidak ada kunci
+    
     price_data = cg.get_price(ids='bitcoin', vs_currencies='usd')
     btc_price = price_data['bitcoin']['usd']
 
@@ -23,12 +27,14 @@ if claude_key and gecko_key:
 
     if st.button("Analisis Pasar"):
         with st.spinner("Claude sedang menganalisis..."):
-            prompt = f"Harga Bitcoin saat ini adalah ${btc_price}. Berikan analisis singkat apakah ini saat yang baik untuk menahan aset."
+            prompt = f"Harga Bitcoin saat ini adalah ${btc_price}. Berikan analisis teknikal singkat."
+            
+            # Sesuaikan dengan model yang ada di setting.json kamu
             message = client.messages.create(
-                model="claude-3-5-sonnet-20240620",
+                model="claude-opus-4-7", 
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}]
             )
             st.write(message.content[0].text)
 else:
-    st.info("Silakan masukkan API Key di sidebar untuk memulai.")
+    st.info("Silakan masukkan API Key Anda di sidebar.")
