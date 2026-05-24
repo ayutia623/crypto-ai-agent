@@ -1,40 +1,46 @@
 import streamlit as st
 from pycoingecko import CoinGeckoAPI
 import anthropic
+from tavily import TavilyClient
 
-st.set_page_config(page_title="Crypto AI Agent", layout="wide")
-
-st.title("🚀 Crypto AI Agent - Live Analysis")
+st.set_page_config(page_title="Crypto AI Agent Pro", layout="wide")
+st.title("🚀 Crypto AI Agent - Intelligence Mode")
 
 with st.sidebar:
-    # Kita tetap minta user input, tapi nanti bisa kita pindahkan ke Secrets
-    api_key = st.text_input("Tokies/Claude API Key", type="password")
-    
-if api_key:
-    # Konfigurasi Client Anthropic dengan URL kustom
+    st.header("🔑 Kunci Akses")
+    claude_key = st.text_input("Claude API Key", type="password")
+    gecko_key = st.text_input("CoinGecko API Key", type="password")
+    tavily_key = st.text_input("Tavily API Key", type="password")
+
+if claude_key and gecko_key and tavily_key:
+    cg = CoinGeckoAPI(api_key=gecko_key)
     client = anthropic.Anthropic(
-        api_key=api_key,
-        base_url="https://api.tokies.lol/anthropic" # URL kustom kamu
+        api_key=claude_key,
+        base_url="https://api.tokies.lol/anthropic",
+        default_headers={"x-api-key": claude_key}
     )
+    tavily = TavilyClient(api_key=tavily_key)
     
-    # Inisialisasi CoinGecko (tambahkan pengecekan jika kamu butuh kunci geckonya)
-    cg = CoinGeckoAPI() # Pakai mode publik jika tidak ada kunci
+    coins = ['bitcoin', 'ethereum', 'solana']
     
-    price_data = cg.get_price(ids='bitcoin', vs_currencies='usd')
-    btc_price = price_data['bitcoin']['usd']
-
-    st.success(f"Harga Bitcoin saat ini: ${btc_price:,.2f}")
-
-    if st.button("Analisis Pasar"):
-        with st.spinner("Claude sedang menganalisis..."):
-            prompt = f"Harga Bitcoin saat ini adalah ${btc_price}. Berikan analisis teknikal singkat."
+    if st.button("Analisis Komprehensif (Data + Berita)"):
+        with st.spinner("Sedang meriset pasar..."):
+            # 1. Tarik Data Harga
+            data = cg.get_price(ids=','.join(coins), vs_currencies='usd')
+            market_summary = "\n".join([f"{c.capitalize()}: ${data[c]['usd']:,}" for c in coins])
             
-            # Sesuaikan dengan model yang ada di setting.json kamu
+            # 2. Cari Berita Terkini via Tavily
+            news = tavily.search(query="crypto market trends news analysis May 2026", search_depth="advanced")
+            news_summary = "\n".join([f"- {r['title']}: {r['content']}" for r in news['results'][:3]])
+            
+            # 3. Analisis oleh Claude
+            prompt = f"Data Harga:\n{market_summary}\n\nBerita Terkini:\n{news_summary}\n\nBerikan analisis mendalam dan strategi trading untuk hari ini."
+            
             message = client.messages.create(
-                model="claude-opus-4-7", 
-                max_tokens=500,
+                model="claude-opus-4-7",
+                max_tokens=800,
                 messages=[{"role": "user", "content": prompt}]
             )
             st.write(message.content[0].text)
 else:
-    st.info("Silakan masukkan API Key Anda di sidebar.")
+    st.info("Masukkan ketiga API Key di sidebar untuk mengaktifkan agen cerdas.")
